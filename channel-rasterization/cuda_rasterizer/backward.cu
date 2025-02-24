@@ -391,7 +391,7 @@ __global__ void preprocessCUDA(
 }
 
 // Backward version of the rendering procedure.
-template <uint32_t C>
+template <uint32_t C, uint32_t TOP_K>
 __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 	renderCUDA(
 		const uint2 *__restrict__ ranges,
@@ -407,7 +407,8 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 		float3 *__restrict__ dL_dmean2D,
 		float4 *__restrict__ dL_dconic2D,
 		float *__restrict__ dL_dopacity,
-		float *__restrict__ dL_dcolors)
+		float *__restrict__ dL_dcolors,
+		const int *__restrict__ cls_ids)
 {
 	// We rasterize again. Compute necessary block info.
 	auto block = cg::this_thread_block();
@@ -441,7 +442,7 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 	uint32_t contributor = toDo;
 	const int last_contributor = inside ? n_contrib[pix_id] : 0;
 
-	float accum_rec[C] = {0};
+	float accum_rec[TOP_K] = {0};
 	float dL_dpixel[C];
 	if (inside)
 		for (int i = 0; i < C; i++)
@@ -503,21 +504,44 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 			// pair).
 			float dL_dalpha = 0.0f;
 			const int global_id = collected_id[j];
-			for (int ch = 0; ch < C; ch++)
+
+			for (int ch = 0; ch < TOP_K; ch++)
 			{
 				// const float c = collected_colors[ch * BLOCK_SIZE + j];
-				const float c = colors[collected_id[j] * C + ch];
+				const float c = colors[collected_id[j] * TOP_K + ch];
 				// Update last color (to be used in the next iteration)
 				accum_rec[ch] = last_alpha * last_color[ch] + (1.f - last_alpha) * accum_rec[ch];
 				last_color[ch] = c;
 
-				const float dL_dchannel = dL_dpixel[ch];
+				int ch_idx = cls_ids[collected_id[j] * TOP_K + ch];
+
+				const float dL_dchannel = dL_dpixel[ch_idx];
 				dL_dalpha += (c - accum_rec[ch]) * dL_dchannel;
 				// Update the gradients w.r.t. color of the Gaussian.
 				// Atomic, since this pixel is just one of potentially
 				// many that were affected by this Gaussian.
-				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
+				atomicAdd(&(dL_dcolors[global_id * TOP_K + ch]), dchannel_dcolor * dL_dchannel);
 			}
+
+
+			// for (int ch = 0; ch < C; ch++)
+			// {
+			// 	// const float c = collected_colors[ch * BLOCK_SIZE + j];
+			// 	const float c = colors[collected_id[j] * C + ch];
+			// 	// Update last color (to be used in the next iteration)
+			// 	accum_rec[ch] = last_alpha * last_color[ch] + (1.f - last_alpha) * accum_rec[ch];
+			// 	last_color[ch] = c;
+
+			// 	const float dL_dchannel = dL_dpixel[ch];
+			// 	dL_dalpha += (c - accum_rec[ch]) * dL_dchannel;
+			// 	// Update the gradients w.r.t. color of the Gaussian.
+			// 	// Atomic, since this pixel is just one of potentially
+			// 	// many that were affected by this Gaussian.
+			// 	atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
+			// }
+
+
+
 			dL_dalpha *= T;
 			// Update last alpha (to be used in the next iteration)
 			last_alpha = alpha;
@@ -631,9 +655,10 @@ void BACKWARD::render(
 	float3 *dL_dmean2D,
 	float4 *dL_dconic2D,
 	float *dL_dopacity,
-	float *dL_dcolors)
+	float *dL_dcolors,
+	const int *cls_ids)
 {
-	renderCUDA<NUM_CHANNELS><<<grid, block>>>(
+	renderCUDA<NUM_CHANNELS, TOP_K_LOGITS_CHANNELS><<<grid, block>>>(
 		ranges,
 		point_list,
 		W, H,
@@ -647,5 +672,6 @@ void BACKWARD::render(
 		dL_dmean2D,
 		dL_dconic2D,
 		dL_dopacity,
-		dL_dcolors);
+		dL_dcolors,
+		cls_ids);
 }
