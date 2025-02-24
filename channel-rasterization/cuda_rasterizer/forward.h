@@ -61,7 +61,8 @@ namespace FORWARD
 		uint32_t *n_contrib,
 		const float *bg_color,
 		float *out_color,
-		const int num_channels);
+		const int num_channels,
+		const int *cls_ids);
 }
 
 #endif

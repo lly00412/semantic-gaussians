@@ -258,7 +258,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 // Main rasterization method. Collaboratively works on one tile per
 // block, each thread treats one pixel. Alternates between fetching
 // and rasterizing data.
-// template <uint32_t CHANNELS>
+template <uint32_t TOP_K, uint32_t CHANNELS>
 __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 	renderCUDA(
 		const uint2 *__restrict__ ranges,
@@ -271,7 +271,8 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 		uint32_t *__restrict__ n_contrib,
 		const float *__restrict__ bg_color,
 		float *__restrict__ out_color,
-		const int num_channels)
+		const int num_channels,
+		const int *cls_ids)
 {
 	// Identify current tile and associated min/max pixel range.
 	auto block = cg::this_thread_block();
@@ -301,7 +302,9 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 	float T = 1.0f;
 	uint32_t contributor = 0;
 	uint32_t last_contributor = 0;
-	float C[768] = {0};
+	// float C[768] = {0};
+	float C[CHANNELS] = {0};
+
 
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
@@ -351,9 +354,26 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 				continue;
 			}
 
+			// tmp to store full logits
+			float tmp[CHANNELS] = {0};
+
+			// Fill tmp based on cls_ids
+			for (int i = 0; i < TOP_K; i++) { 
+				int target_index = cls_ids[i + collected_id[j] * TOP_K];  
+				if (target_index >= 0 && target_index < CHANNELS) {  // Bounds check
+					tmp[target_index] = features[i + collected_id[j] * TOP_K];  
+				}
+			}
+
+
+
 			// Eq. (3) from 3D Gaussian splatting paper.
-			for (int ch = 0; ch < num_channels; ch++)
-				C[ch] += features[collected_id[j] * num_channels + ch] * alpha * T;
+			// for (int ch = 0; ch < num_channels; ch++)
+			// 	C[ch] += features[collected_id[j] * num_channels + ch] * alpha * T;
+			for (int ch = 0; ch < CHANNELS; ch++)
+				C[ch] += tmp[ch] * alpha * T;
+
+
 
 			T = test_T;
 
@@ -369,7 +389,7 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 	{
 		final_T[pix_id] = T;
 		n_contrib[pix_id] = last_contributor;
-		for (int ch = 0; ch < num_channels; ch++)
+		for (int ch = 0; ch < CHANNELS; ch++)
 			out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
 	}
 }
@@ -386,9 +406,10 @@ void FORWARD::render(
 	uint32_t *n_contrib,
 	const float *bg_color,
 	float *out_color,
-	const int num_channels)
+	const int num_channels,
+	const int *cls_ids)
 {
-	renderCUDA<<<grid, block>>>(
+	renderCUDA<TOP_K_LOGITS_CHANNELS, NUM_CHANNELS>  <<<grid, block>>>(
 		ranges,
 		point_list,
 		W, H,
@@ -399,7 +420,8 @@ void FORWARD::render(
 		n_contrib,
 		bg_color,
 		out_color,
-		num_channels);
+		num_channels,
+		cls_ids);
 }
 
 void FORWARD::preprocess(int P, int D, int M,

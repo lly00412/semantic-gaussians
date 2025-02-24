@@ -218,7 +218,8 @@ int CudaRasterizer::Rasterizer::forward(
 	const int num_channels,
 	float *out_color,
 	int *radii,
-	bool debug)
+	bool debug,
+	const int *cls_ids)
 {
 	const float focal_y = height / (2.0f * tan_fovy);
 	const float focal_x = width / (2.0f * tan_fovx);
@@ -322,6 +323,8 @@ int CudaRasterizer::Rasterizer::forward(
 
 	// Let each tile blend its range of Gaussians independently in parallel
 	const float *feature_ptr = colors_precomp != nullptr ? colors_precomp : geomState.rgb;
+	const int *cls_ptr = cls_ids;
+	
 	CHECK_CUDA(FORWARD::render(
 				   tile_grid, block,
 				   imgState.ranges,
@@ -334,7 +337,8 @@ int CudaRasterizer::Rasterizer::forward(
 				   imgState.n_contrib,
 				   background,
 				   out_color,
-				   num_channels),
+				   num_channels, 
+				   cls_ptr),
 			   debug)
 
 	return num_rendered;
@@ -371,7 +375,8 @@ void CudaRasterizer::Rasterizer::backward(
 	float *dL_dsh,
 	float *dL_dscale,
 	float *dL_drot,
-	bool debug)
+	bool debug,
+	const int *cls_ids)
 {
 	GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
 	BinningState binningState = BinningState::fromChunk(binning_buffer, R);
@@ -408,7 +413,8 @@ void CudaRasterizer::Rasterizer::backward(
 				   (float3 *)dL_dmean2D,
 				   (float4 *)dL_dconic,
 				   dL_dopacity,
-				   dL_dcolor),
+				   dL_dcolor,
+				   cls_ids),
 			   debug)
 
 	// Take care of the rest of preprocessing. Was the precomputed covariance

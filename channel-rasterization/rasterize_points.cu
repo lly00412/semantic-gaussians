@@ -56,7 +56,8 @@ RasterizeGaussiansCUDA(
 	const torch::Tensor &campos,
 	const bool prefiltered,
 	const bool debug,
-	const int num_channels)
+	const int num_channels,
+	const torch::Tensor &cls_ids)
 {
 	if (means3D.ndimension() != 2 || means3D.size(1) != 3)
 	{
@@ -115,7 +116,8 @@ RasterizeGaussiansCUDA(
 			num_channels,
 			out_color.contiguous().data<float>(),
 			radii.contiguous().data<int>(),
-			debug);
+			debug,
+			cls_ids.contiguous().data<int>());
 	}
 	return std::make_tuple(rendered, out_color, radii, geomBuffer, binningBuffer, imgBuffer);
 }
@@ -142,7 +144,8 @@ RasterizeGaussiansBackwardCUDA(
 	const int R,
 	const torch::Tensor &binningBuffer,
 	const torch::Tensor &imageBuffer,
-	const bool debug)
+	const bool debug,
+	const torch::Tensor &cls_ids)
 {
 	const int P = means3D.size(0);
 	const int H = dL_dout_color.size(1);
@@ -156,7 +159,9 @@ RasterizeGaussiansBackwardCUDA(
 
 	torch::Tensor dL_dmeans3D = torch::zeros({P, 3}, means3D.options());
 	torch::Tensor dL_dmeans2D = torch::zeros({P, 3}, means3D.options());
-	torch::Tensor dL_dcolors = torch::zeros({P, NUM_CHANNELS}, means3D.options());
+	// torch::Tensor dL_dcolors = torch::zeros({P, NUM_CHANNELS}, means3D.options());
+	torch::Tensor dL_dcolors = torch::zeros({P, TOP_K_LOGITS_CHANNELS}, means3D.options());
+
 	torch::Tensor dL_dconic = torch::zeros({P, 2, 2}, means3D.options());
 	torch::Tensor dL_dopacity = torch::zeros({P, 1}, means3D.options());
 	torch::Tensor dL_dcov3D = torch::zeros({P, 6}, means3D.options());
@@ -195,7 +200,8 @@ RasterizeGaussiansBackwardCUDA(
 											 dL_dsh.contiguous().data<float>(),
 											 dL_dscales.contiguous().data<float>(),
 											 dL_drotations.contiguous().data<float>(),
-											 debug);
+											 debug,
+											 cls_ids.contiguous().data<int>());
 	}
 
 	return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations);
