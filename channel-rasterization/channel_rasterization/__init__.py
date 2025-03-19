@@ -31,6 +31,7 @@ def rasterize_gaussians(
     cov3Ds_precomp,
     raster_settings,
 ):
+    print(colors_precomp)
     return _RasterizeGaussians.apply(
         means3D,
         means2D,
@@ -79,11 +80,15 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.campos,
             raster_settings.prefiltered,
             raster_settings.debug,
+            # True,
             raster_settings.num_channels,
+            raster_settings.cls_ids,
         )
 
         # Invoke C++/CUDA rasterizer
         if raster_settings.debug:
+        # if True:
+
             cpu_args = cpu_deep_copy_tuple(args)  # Copy them before they can be corrupted
             try:
                 (
@@ -99,6 +104,9 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in forward. Please forward snapshot_fw.dump for debugging.")
                 raise ex
         else:
+            # print("###############################################")
+            # print(type(raster_settings.num_channels))
+            # print(type(raster_settings.cls_ids))
             (
                 num_rendered,
                 color,
@@ -227,6 +235,7 @@ class GaussianRasterizationSettings(NamedTuple):
     prefiltered: bool
     debug: bool
     num_channels: int
+    cls_ids: torch.Tensor
 
 
 class GaussianRasterizer(nn.Module):
