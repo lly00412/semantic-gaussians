@@ -31,7 +31,6 @@ def rasterize_gaussians(
     cov3Ds_precomp,
     raster_settings,
 ):
-    print(colors_precomp)
     return _RasterizeGaussians.apply(
         means3D,
         means2D,
@@ -104,9 +103,6 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in forward. Please forward snapshot_fw.dump for debugging.")
                 raise ex
         else:
-            # print("###############################################")
-            # print(type(raster_settings.num_channels))
-            # print(type(raster_settings.cls_ids))
             (
                 num_rendered,
                 color,

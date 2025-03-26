@@ -355,29 +355,10 @@
 			 }
  
  
-			 // tmp to store full logits
-			 // float tmp[CHANNELS] = {0};
- 
- 
 			 // Fill color based on cls_ids
 			 for (int k = 0; k < TOP_K; k++) { 
-				 // printf("k:%d ", k);
-				 // int test =  cls_ids[0]; 
-				 // printf("c_id:%d ", collected_id[j]);
-				 // int test = cls_ids[collected_id[j] * TOP_K];
-				 // float test = features[k + collected_id[j] * TOP_K];
-				 // printf("test: %d\n", test);
-				 // printf("k:%d ", k);
-				 // int test  = cls_ids[306096];
- 
-				 // printf("test: %d\n", test);
-				 // printf("idx: %d\n", (collected_id[j] * TOP_K + k));
-				 // test = cls_ids[collected_id[j] * TOP_K + k];
- 
 				 int target_index = cls_ids[k + collected_id[j] * TOP_K];  
-				 // printf("target_index: %d\n", target_index);
 				 if (target_index >= 0 && target_index < CHANNELS) {  // Bounds check
-					 // tmp[target_index] = features[i + collected_id[j] * TOP_K];  
 					 C[target_index] = features[k + collected_id[j] * TOP_K] * alpha * T;
 				 }
 			 }
@@ -386,10 +367,6 @@
 			 // for (int ch = 0; ch < num_channels; ch++)
 			 // 	C[ch] += features[collected_id[j] * num_channels + ch] * alpha * T;
  
-			 // for (int ch = 0; ch < CHANNELS; ch++){
-			 // 	C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
-			 // 	printf("good ");
-			 // }
 				 
  
 			 // for (int ch = 0; ch < CHANNELS; ch++)
