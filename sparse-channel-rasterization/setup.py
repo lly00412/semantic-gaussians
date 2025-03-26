@@ -16,11 +16,11 @@ import os
 os.path.dirname(os.path.abspath(__file__))
 
 setup(
-    name="channel_rasterization",
-    packages=["channel_rasterization"],
+    name="sparse_channel_rasterization",
+    packages=["sparse_channel_rasterization"],
     ext_modules=[
         CUDAExtension(
-            name="channel_rasterization._C",
+            name="sparse_channel_rasterization._C",
             sources=[
                 "cuda_rasterizer/rasterizer_impl.cu",
                 "cuda_rasterizer/forward.cu",
